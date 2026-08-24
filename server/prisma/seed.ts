@@ -91,11 +91,74 @@ async function main() {
   const salesOrderCount = await prisma.salesOrder.count();
   if (salesOrderCount === 0) {
     const sampleOrders = [
-      { customer: customers[0], user: staff, items: [{ sku: 'SOF-001', qty: 1 }, { sku: 'CTB-001', qty: 1 }], daysAgo: 1, status: 'COMPLETED' as const },
-      { customer: customers[1], user: manager, items: [{ sku: 'DIN-001', qty: 1 }, { sku: 'DIN-002', qty: 3 }], daysAgo: 3, status: 'COMPLETED' as const },
-      { customer: customers[2], user: staff, items: [{ sku: 'BED-001', qty: 1 }, { sku: 'NST-001', qty: 2 }], daysAgo: 6, status: 'PAID' as const },
-      { customer: customers[3], user: staff, items: [{ sku: 'OFC-001', qty: 1 }, { sku: 'OFC-002', qty: 1 }], daysAgo: 10, status: 'SHIPPED' as const },
-      { customer: customers[0], user: manager, items: [{ sku: 'OUT-001', qty: 1 }], daysAgo: 15, status: 'COMPLETED' as const },
+      {
+        customer: customers[0],
+        user: staff,
+        items: [{ sku: 'SOF-001', qty: 1 }, { sku: 'CTB-001', qty: 1 }],
+        daysAgo: 1,
+        status: 'COMPLETED' as const,
+        discount: 0,
+        fullyPaid: true,
+      },
+      {
+        customer: customers[1],
+        user: manager,
+        items: [{ sku: 'DIN-001', qty: 1 }, { sku: 'DIN-002', qty: 3 }],
+        daysAgo: 3,
+        status: 'COMPLETED' as const,
+        discount: 50, // manager-approved discount
+        fullyPaid: true,
+      },
+      {
+        customer: customers[2],
+        user: staff,
+        items: [{ sku: 'BED-001', qty: 1 }, { sku: 'NST-001', qty: 2 }],
+        daysAgo: 6,
+        status: 'PAID' as const,
+        discount: 0,
+        fullyPaid: true,
+      },
+      {
+        customer: customers[3],
+        user: staff,
+        items: [{ sku: 'OFC-001', qty: 1 }, { sku: 'OFC-002', qty: 1 }],
+        daysAgo: 10,
+        status: 'SHIPPED' as const,
+        discount: 0,
+        fullyPaid: true,
+      },
+      {
+        customer: customers[0],
+        user: manager,
+        items: [{ sku: 'OUT-001', qty: 1 }],
+        daysAgo: 15,
+        status: 'COMPLETED' as const,
+        discount: 0,
+        fullyPaid: true,
+      },
+      // Layaway example: a big-ticket delivery order with only a deposit paid so far.
+      {
+        customer: customers[1],
+        user: manager,
+        items: [{ sku: 'BED-002', qty: 1 }, { sku: 'DRS-001', qty: 1 }],
+        daysAgo: 2,
+        status: 'PARTIALLY_PAID' as const,
+        discount: 0,
+        fullyPaid: false,
+        depositFraction: 0.4,
+        delivery: { address: '48 Birch Ave, Springfield', scheduledInDays: 5, status: 'SCHEDULED' as const },
+      },
+      // A second delivery example, already out for delivery, paid in full.
+      {
+        customer: customers[3],
+        user: staff,
+        items: [{ sku: 'SOF-002', qty: 1 }],
+        daysAgo: 1,
+        status: 'PAID' as const,
+        discount: 0,
+        fullyPaid: true,
+        delivery: { address: '221 Oak Blvd, Rivertown', scheduledInDays: 1, status: 'OUT_FOR_DELIVERY' as const },
+      },
     ];
 
     for (const so of sampleOrders) {
@@ -107,9 +170,14 @@ async function main() {
         subtotal += lineTotal;
         items.push({ productId: product.id, quantity: it.qty, unitPrice: product.sellingPrice, lineTotal });
       }
-      const tax = subtotal * 0.08;
+      const discount = so.discount ?? 0;
+      const taxable = subtotal - discount;
+      const tax = taxable * 0.08;
+      const total = taxable + tax;
       const orderDate = new Date(Date.now() - so.daysAgo * 24 * 60 * 60 * 1000);
       const rand = Math.random().toString(16).slice(2, 6).toUpperCase();
+      const amountPaid = so.fullyPaid ? total : Math.round(total * (so.depositFraction ?? 0.5) * 100) / 100;
+
       await prisma.salesOrder.create({
         data: {
           orderNumber: `SO-SEED-${rand}`,
@@ -118,14 +186,44 @@ async function main() {
           status: so.status,
           paymentMethod: 'CARD',
           taxRate: 0.08,
+          discount,
           subtotal,
           tax,
-          total: subtotal + tax,
+          total,
           orderDate,
+          fulfillmentMethod: so.delivery ? 'DELIVERY' : 'PICKUP',
+          deliveryAddress: so.delivery?.address,
+          scheduledDate: so.delivery ? new Date(Date.now() + so.delivery.scheduledInDays * 24 * 60 * 60 * 1000) : undefined,
+          deliveryStatus: so.delivery?.status ?? 'NOT_SCHEDULED',
           items: { create: items },
+          payments: amountPaid > 0 ? { create: { amount: amountPaid, method: 'CARD', userId: so.user.id } } : undefined,
         },
       });
       // Reduce stock to reflect the sale (seed products above already account for post-sale stock levels).
+    }
+  }
+
+  // Sample operating expenses, spread across this month, for the profit report.
+  const expenseCount = await prisma.expense.count();
+  if (expenseCount === 0) {
+    const expenseDefs = [
+      { category: 'RENT', description: 'Showroom + warehouse rent', amount: 1200, daysAgo: 20, user: admin },
+      { category: 'WAGES', description: 'Staff payroll (bi-weekly)', amount: 1500, daysAgo: 14, user: admin },
+      { category: 'UTILITIES', description: 'Electricity & water', amount: 210, daysAgo: 10, user: manager },
+      { category: 'MARKETING', description: 'Local newspaper + social ads', amount: 300, daysAgo: 8, user: manager },
+      { category: 'SHIPPING', description: 'Freight for incoming inventory', amount: 250, daysAgo: 4, user: manager },
+      { category: 'SUPPLIES', description: 'Packing materials & tape', amount: 95, daysAgo: 2, user: staff },
+    ] as const;
+    for (const e of expenseDefs) {
+      await prisma.expense.create({
+        data: {
+          category: e.category,
+          description: e.description,
+          amount: e.amount,
+          expenseDate: new Date(Date.now() - e.daysAgo * 24 * 60 * 60 * 1000),
+          userId: e.user.id,
+        },
+      });
     }
   }
 

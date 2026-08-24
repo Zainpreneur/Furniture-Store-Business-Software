@@ -14,6 +14,8 @@ import SalesOrders from './pages/SalesOrders';
 import SalesOrderCreate from './pages/SalesOrderCreate';
 import SalesOrderDetail from './pages/SalesOrderDetail';
 import Users from './pages/Users';
+import Expenses from './pages/Expenses';
+import Deliveries from './pages/Deliveries';
 
 export default function App() {
   return (
@@ -34,6 +36,11 @@ export default function App() {
               <Route path="/sales-orders" element={<SalesOrders />} />
               <Route path="/sales-orders/new" element={<SalesOrderCreate />} />
               <Route path="/sales-orders/:id" element={<SalesOrderDetail />} />
+              <Route path="/deliveries" element={<Deliveries />} />
+
+              <Route element={<ProtectedRoute roles={['ADMIN', 'MANAGER']} />}>
+                <Route path="/expenses" element={<Expenses />} />
+              </Route>
 
               <Route element={<ProtectedRoute roles={['ADMIN']} />}>
                 <Route path="/users" element={<Users />} />

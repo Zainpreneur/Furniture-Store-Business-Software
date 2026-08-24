@@ -26,6 +26,9 @@ router.get(
       allProducts,
       recentOrders,
       recentSales,
+      monthLineItems,
+      expensesMonthAgg,
+      upcomingDeliveries,
     ] = await Promise.all([
       prisma.product.count({ where: { isActive: true } }),
       prisma.customer.count(),
@@ -43,7 +46,29 @@ router.get(
         where: { orderDate: { gte: thirtyDaysAgo }, ...activeOrderFilter },
         select: { orderDate: true, total: true },
       }),
+      // Line items sold this month, with each product's current cost price, to estimate COGS.
+      // Note: uses the product's *current* cost price rather than a historical snapshot.
+      prisma.salesOrderItem.findMany({
+        where: { salesOrder: { orderDate: { gte: startOfMonth }, ...activeOrderFilter } },
+        select: { quantity: true, product: { select: { costPrice: true } } },
+      }),
+      prisma.expense.aggregate({ _sum: { amount: true }, where: { expenseDate: { gte: startOfMonth } } }),
+      prisma.salesOrder.findMany({
+        where: {
+          fulfillmentMethod: 'DELIVERY',
+          deliveryStatus: { in: ['NOT_SCHEDULED', 'SCHEDULED', 'OUT_FOR_DELIVERY'] },
+          status: { notIn: ['CANCELLED'] },
+        },
+        include: { customer: true },
+        orderBy: [{ scheduledDate: 'asc' }, { orderDate: 'asc' }],
+        take: 8,
+      }),
     ]);
+
+    const cogsMonth = monthLineItems.reduce((sum, li) => sum + li.quantity * li.product.costPrice, 0);
+    const expensesMonth = expensesMonthAgg._sum?.amount ?? 0;
+    const grossProfitMonth = (revenueMonth._sum?.total ?? 0) - cogsMonth;
+    const netProfitMonth = grossProfitMonth - expensesMonth;
 
     const lowStockProducts = allProducts
       .filter((p) => p.stockQuantity <= p.reorderLevel)
@@ -79,10 +104,12 @@ router.get(
     res.json({
       counts: { productCount, customerCount, supplierCount, pendingPurchaseOrders, lowStockCount: lowStockProducts.length },
       revenue: { today: revenueToday._sum?.total ?? 0, month: revenueMonth._sum?.total ?? 0 },
+      profit: { grossMonth: grossProfitMonth, netMonth: netProfitMonth, expensesMonth, cogsMonth },
       lowStockProducts,
       recentOrders,
       revenueSeries,
       topProducts,
+      upcomingDeliveries,
     });
   })
 );

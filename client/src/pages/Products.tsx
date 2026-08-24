@@ -6,6 +6,7 @@ import { apiErrorMessage } from '../api/client';
 import type { Category, Product } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { Badge, Button, Card, EmptyState, Input, Label, Modal, PageHeader, Select, Textarea, currency } from '../components/ui';
+import { downloadCsv } from '../utils/csv';
 
 const emptyForm = {
   sku: '',
@@ -129,6 +130,14 @@ export default function Products() {
     }
   };
 
+  const exportCsv = () => {
+    downloadCsv(
+      `products-${new Date().toISOString().slice(0, 10)}.csv`,
+      ['SKU', 'Name', 'Category', 'Cost price', 'Selling price', 'Stock', 'Reorder level'],
+      products.map((p) => [p.sku, p.name, p.category?.name ?? '', p.costPrice.toFixed(2), p.sellingPrice.toFixed(2), p.stockQuantity, p.reorderLevel])
+    );
+  };
+
   const handleAdjust = async (e: FormEvent) => {
     e.preventDefault();
     if (!adjustTarget) return;
@@ -154,7 +163,14 @@ export default function Products() {
       <PageHeader
         title="Products"
         subtitle="Manage your furniture catalog and stock levels"
-        actions={canEdit ? <Button onClick={openCreate}>+ New product</Button> : undefined}
+        actions={
+          <>
+            <Button variant="secondary" onClick={exportCsv} disabled={products.length === 0}>
+              Export CSV
+            </Button>
+            {canEdit && <Button onClick={openCreate}>+ New product</Button>}
+          </>
+        }
       />
 
       <div className="flex flex-wrap items-center gap-3 mb-4">

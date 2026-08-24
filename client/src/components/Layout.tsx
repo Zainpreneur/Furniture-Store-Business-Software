@@ -1,11 +1,13 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import GlobalSearch from './GlobalSearch';
 
 const navItems = [
   { to: '/', label: 'Dashboard', icon: '📊', end: true },
   { to: '/products', label: 'Products', icon: '🪑' },
   { to: '/categories', label: 'Categories', icon: '🗂️' },
   { to: '/sales-orders', label: 'Sales Orders', icon: '🧾' },
+  { to: '/deliveries', label: 'Deliveries', icon: '🚛' },
   { to: '/customers', label: 'Customers', icon: '👥' },
   { to: '/purchase-orders', label: 'Purchase Orders', icon: '📦' },
   { to: '/suppliers', label: 'Suppliers', icon: '🚚' },
@@ -13,6 +15,7 @@ const navItems = [
 
 export default function Layout() {
   const { user, logout } = useAuth();
+  const canSeeFinancials = user?.role === 'ADMIN' || user?.role === 'MANAGER';
 
   return (
     <div className="min-h-screen flex bg-stone-50">
@@ -39,6 +42,18 @@ export default function Layout() {
               {item.label}
             </NavLink>
           ))}
+          {canSeeFinancials && (
+            <NavLink
+              to="/expenses"
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  isActive ? 'bg-brand-600 text-white' : 'text-stone-300 hover:bg-stone-800 hover:text-white'
+                }`
+              }
+            >
+              <span>💵</span> Expenses
+            </NavLink>
+          )}
           {user?.role === 'ADMIN' && (
             <NavLink
               to="/users"
@@ -60,8 +75,11 @@ export default function Layout() {
           </button>
         </div>
       </aside>
-      <main className="flex-1 min-w-0">
-        <div className="max-w-7xl mx-auto px-6 py-8">
+      <main className="flex-1 min-w-0 flex flex-col">
+        <div className="bg-stone-900 px-6 py-3 flex justify-end print:hidden">
+          <GlobalSearch />
+        </div>
+        <div className="max-w-7xl mx-auto px-6 py-8 w-full">
           <Outlet />
         </div>
       </main>

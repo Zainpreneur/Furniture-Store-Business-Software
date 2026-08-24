@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { CustomersApi, ProductsApi, SalesOrdersApi } from '../api/resources';
 import { apiErrorMessage } from '../api/client';
-import type { Customer, PaymentMethod, Product } from '../types';
-import { Button, Card, Input, Label, PageHeader, Select, currency } from '../components/ui';
+import type { Customer, FulfillmentMethod, PaymentMethod, Product } from '../types';
+import { Button, Card, Input, Label, PageHeader, Select, Textarea, currency } from '../components/ui';
 
 interface CartLine {
   product: Product;
@@ -22,7 +22,13 @@ export default function SalesOrderCreate() {
   const [customerId, setCustomerId] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH');
   const [taxRatePct, setTaxRatePct] = useState('8');
+  const [discountStr, setDiscountStr] = useState('0');
   const [notes, setNotes] = useState('');
+  const [fulfillmentMethod, setFulfillmentMethod] = useState<FulfillmentMethod>('PICKUP');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [scheduledDate, setScheduledDate] = useState('');
+  const [collectFullPayment, setCollectFullPayment] = useState(true);
+  const [depositStr, setDepositStr] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -65,13 +71,20 @@ export default function SalesOrderCreate() {
   const removeLine = (productId: string) => setCart((prev) => prev.filter((l) => l.product.id !== productId));
 
   const subtotal = cart.reduce((sum, l) => sum + l.product.sellingPrice * l.quantity, 0);
+  const discount = Math.min(Math.max(0, Number(discountStr || 0)), subtotal);
   const taxRate = Math.max(0, Number(taxRatePct || 0)) / 100;
-  const tax = subtotal * taxRate;
-  const total = subtotal + tax;
+  const taxable = subtotal - discount;
+  const tax = taxable * taxRate;
+  const total = taxable + tax;
+  const deposit = Math.min(Math.max(0, Number(depositStr || 0)), total);
 
   const handleSubmit = async () => {
     if (cart.length === 0) {
       toast.error('Add at least one product to the cart');
+      return;
+    }
+    if (fulfillmentMethod === 'DELIVERY' && !deliveryAddress.trim()) {
+      toast.error('Enter a delivery address');
       return;
     }
     setSubmitting(true);
@@ -80,11 +93,16 @@ export default function SalesOrderCreate() {
         customerId: customerId || null,
         paymentMethod,
         taxRate,
+        discount,
         notes: notes || undefined,
         status: 'PAID',
+        amountPaid: collectFullPayment ? undefined : deposit,
+        fulfillmentMethod,
+        deliveryAddress: fulfillmentMethod === 'DELIVERY' ? deliveryAddress : undefined,
+        scheduledDate: scheduledDate ? new Date(scheduledDate).toISOString() : undefined,
         items: cart.map((l) => ({ productId: l.product.id, quantity: l.quantity })),
       });
-      toast.success('Sale completed');
+      toast.success(collectFullPayment ? 'Sale completed' : 'Sale recorded with deposit');
       navigate(`/sales-orders/${res.data.id}`);
     } catch (err) {
       toast.error(apiErrorMessage(err));
@@ -170,20 +188,67 @@ export default function SalesOrderCreate() {
                   ))}
                 </Select>
               </div>
-              <div>
-                <Label>Tax rate (%)</Label>
-                <Input type="number" min="0" step="0.1" value={taxRatePct} onChange={(e) => setTaxRatePct(e.target.value)} />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label>Discount ($)</Label>
+                  <Input type="number" min="0" step="0.01" value={discountStr} onChange={(e) => setDiscountStr(e.target.value)} />
+                </div>
+                <div>
+                  <Label>Tax rate (%)</Label>
+                  <Input type="number" min="0" step="0.1" value={taxRatePct} onChange={(e) => setTaxRatePct(e.target.value)} />
+                </div>
               </div>
+
+              <div>
+                <Label>Fulfillment</Label>
+                <Select value={fulfillmentMethod} onChange={(e) => setFulfillmentMethod(e.target.value as FulfillmentMethod)}>
+                  <option value="PICKUP">In-store pickup</option>
+                  <option value="DELIVERY">Delivery</option>
+                </Select>
+              </div>
+              {fulfillmentMethod === 'DELIVERY' && (
+                <div className="space-y-3 bg-stone-50 rounded-lg p-3 border border-stone-200">
+                  <div>
+                    <Label>Delivery address</Label>
+                    <Textarea rows={2} value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)} required />
+                  </div>
+                  <div>
+                    <Label>Scheduled delivery date (optional)</Label>
+                    <Input type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} />
+                  </div>
+                </div>
+              )}
+
               <div>
                 <Label>Notes</Label>
                 <Input value={notes} onChange={(e) => setNotes(e.target.value)} />
               </div>
+
+              <label className="flex items-center gap-2 text-sm text-stone-600">
+                <input type="checkbox" checked={collectFullPayment} onChange={(e) => setCollectFullPayment(e.target.checked)} />
+                Collect full payment now
+              </label>
+              {!collectFullPayment && (
+                <div>
+                  <Label>Deposit collected now ($)</Label>
+                  <Input type="number" min="0" step="0.01" max={total} value={depositStr} onChange={(e) => setDepositStr(e.target.value)} />
+                  <p className="text-xs text-stone-400 mt-1">
+                    Remaining balance of {currency(Math.max(0, total - deposit))} will show as due — record it later as a layaway payment.
+                  </p>
+                </div>
+              )}
 
               <div className="text-sm space-y-1 pt-2">
                 <div className="flex justify-between text-stone-600">
                   <span>Subtotal</span>
                   <span>{currency(subtotal)}</span>
                 </div>
+                {discount > 0 && (
+                  <div className="flex justify-between text-stone-600">
+                    <span>Discount</span>
+                    <span>-{currency(discount)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-stone-600">
                   <span>Tax</span>
                   <span>{currency(tax)}</span>
@@ -192,10 +257,16 @@ export default function SalesOrderCreate() {
                   <span>Total</span>
                   <span>{currency(total)}</span>
                 </div>
+                {!collectFullPayment && (
+                  <div className="flex justify-between text-stone-600 pt-1">
+                    <span>Collected now</span>
+                    <span>{currency(deposit)}</span>
+                  </div>
+                )}
               </div>
 
               <Button className="w-full justify-center" onClick={handleSubmit} disabled={submitting || cart.length === 0}>
-                {submitting ? 'Processing…' : 'Complete sale'}
+                {submitting ? 'Processing…' : collectFullPayment ? 'Complete sale' : 'Record sale with deposit'}
               </Button>
             </div>
           </Card>

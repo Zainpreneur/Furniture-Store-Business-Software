@@ -81,8 +81,10 @@ export interface PurchaseOrder {
   items: PurchaseOrderItem[];
 }
 
-export type SalesOrderStatus = 'PENDING' | 'PAID' | 'SHIPPED' | 'COMPLETED' | 'CANCELLED';
+export type SalesOrderStatus = 'PENDING' | 'PAID' | 'PARTIALLY_PAID' | 'SHIPPED' | 'COMPLETED' | 'CANCELLED';
 export type PaymentMethod = 'CASH' | 'CARD' | 'BANK_TRANSFER' | 'FINANCING' | 'OTHER';
+export type FulfillmentMethod = 'PICKUP' | 'DELIVERY';
+export type DeliveryStatus = 'NOT_SCHEDULED' | 'SCHEDULED' | 'OUT_FOR_DELIVERY' | 'DELIVERED';
 
 export interface SalesOrderItem {
   id: string;
@@ -91,6 +93,16 @@ export interface SalesOrderItem {
   quantity: number;
   unitPrice: number;
   lineTotal: number;
+}
+
+export interface Payment {
+  id: string;
+  salesOrderId: string;
+  amount: number;
+  method: PaymentMethod;
+  note?: string | null;
+  user?: { id: string; name: string } | null;
+  createdAt: string;
 }
 
 export interface SalesOrder {
@@ -104,11 +116,31 @@ export interface SalesOrder {
   paymentMethod: PaymentMethod;
   orderDate: string;
   subtotal: number;
+  discount: number;
   taxRate: number;
   tax: number;
   total: number;
   notes?: string | null;
+  fulfillmentMethod: FulfillmentMethod;
+  deliveryAddress?: string | null;
+  scheduledDate?: string | null;
+  deliveryStatus: DeliveryStatus;
   items: SalesOrderItem[];
+  payments: Payment[];
+  amountPaid: number;
+  balanceDue: number;
+}
+
+export type ExpenseCategory = 'RENT' | 'UTILITIES' | 'WAGES' | 'MARKETING' | 'SUPPLIES' | 'SHIPPING' | 'OTHER';
+
+export interface Expense {
+  id: string;
+  category: ExpenseCategory;
+  description?: string | null;
+  amount: number;
+  expenseDate: string;
+  user?: { id: string; name: string } | null;
+  createdAt: string;
 }
 
 export interface DashboardSummary {
@@ -120,8 +152,10 @@ export interface DashboardSummary {
     lowStockCount: number;
   };
   revenue: { today: number; month: number };
+  profit: { grossMonth: number; netMonth: number; expensesMonth: number; cogsMonth: number };
   lowStockProducts: Pick<Product, 'id' | 'name' | 'sku' | 'stockQuantity' | 'reorderLevel' | 'imageUrl'>[];
   recentOrders: SalesOrder[];
   revenueSeries: { date: string; total: number }[];
   topProducts: { product?: Product; revenue: number; unitsSold: number }[];
+  upcomingDeliveries: SalesOrder[];
 }

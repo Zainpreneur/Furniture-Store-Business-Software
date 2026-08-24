@@ -32,10 +32,25 @@ other changes.
 - **Suppliers & purchasing** — supplier directory, purchase orders with line
   items; marking a PO "received" automatically increases stock.
 - **Sales orders / POS** — a cart-style "New Sale" screen that validates
-  stock, snapshots prices, computes tax, and generates a printable invoice.
-  Cancelling an order returns stock to inventory.
-- **Dashboard** — today/month revenue, 30-day revenue trend, top-selling
-  products, low-stock alerts, and recent orders.
+  stock, snapshots prices, applies an order-level discount, computes tax, and
+  generates a printable invoice. Cancelling an order returns stock to inventory.
+- **Discounts** — a dollar discount per sale, applied before tax.
+- **Partial payments / layaway** — record a deposit at checkout and collect
+  the rest later; an order's status (`PENDING` → `PARTIALLY_PAID` → `PAID`)
+  and balance due are derived automatically from its payment history.
+- **Delivery scheduling** — mark a sale for pickup or delivery, set an
+  address and scheduled date, and track it through
+  `NOT_SCHEDULED → SCHEDULED → OUT_FOR_DELIVERY → DELIVERED` from a
+  dedicated Deliveries screen.
+- **Expense tracking & profit report** — log operating expenses (rent, wages,
+  marketing, ...) by category; the dashboard shows gross profit (revenue −
+  cost of goods sold) and net profit (gross − expenses) for the month.
+- **CSV export** — one-click export of the Products and Sales Orders lists.
+- **Global quick search** — a navbar search that jumps to matching products,
+  customers, or sales orders by number.
+- **Dashboard** — today/month revenue, net profit, 30-day revenue trend,
+  top-selling products, low-stock alerts, recent orders, and upcoming
+  deliveries.
 - **User management** — Admin-only screen to create staff accounts, change
   roles, and activate/deactivate accounts.
 
@@ -140,8 +155,9 @@ All routes are prefixed with `/api` and (except `/auth/login`,
 | Customers        | `/api/customers`         | |
 | Suppliers        | `/api/suppliers`         | |
 | Purchase orders  | `/api/purchase-orders`   | `/status` transitions restock inventory on RECEIVED |
-| Sales orders     | `/api/sales-orders`      | `/status` transitions restock inventory on CANCELLED |
-| Dashboard        | `/api/dashboard/summary` | revenue, top products, low stock, recent orders |
+| Sales orders     | `/api/sales-orders`      | `/status` restocks on CANCELLED; `/payments` records a payment; `/delivery` updates fulfillment/delivery status; `?search=` matches order # or customer name |
+| Expenses         | `/api/expenses`          | Admin/Manager only |
+| Dashboard        | `/api/dashboard/summary` | revenue, profit, top products, low stock, recent orders, upcoming deliveries |
 
 ## Notes on the demo data
 

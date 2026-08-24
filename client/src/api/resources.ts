@@ -3,6 +3,7 @@ import type {
   Category,
   Customer,
   DashboardSummary,
+  Expense,
   Product,
   PurchaseOrder,
   SalesOrder,
@@ -66,17 +67,36 @@ export const PurchaseOrdersApi = {
 };
 
 export const SalesOrdersApi = {
-  list: (params?: { status?: string; customerId?: string }) => api.get<SalesOrder[]>('/sales-orders', { params }),
+  list: (params?: { status?: string; customerId?: string; search?: string; fulfillmentMethod?: string; deliveryStatus?: string }) =>
+    api.get<SalesOrder[]>('/sales-orders', { params }),
   get: (id: string) => api.get<SalesOrder>(`/sales-orders/${id}`),
   create: (data: {
     customerId?: string | null;
     paymentMethod?: string;
     taxRate?: number;
+    discount?: number;
     notes?: string;
     status?: string;
+    amountPaid?: number;
+    fulfillmentMethod?: string;
+    deliveryAddress?: string;
+    scheduledDate?: string;
     items: { productId: string; quantity: number }[];
   }) => api.post<SalesOrder>('/sales-orders', data),
   setStatus: (id: string, status: string) => api.patch<SalesOrder>(`/sales-orders/${id}/status`, { status }),
+  recordPayment: (id: string, data: { amount: number; method: string; note?: string }) =>
+    api.post<SalesOrder>(`/sales-orders/${id}/payments`, data),
+  updateDelivery: (
+    id: string,
+    data: Partial<{ fulfillmentMethod: string; deliveryAddress: string; scheduledDate: string | null; deliveryStatus: string }>
+  ) => api.patch<SalesOrder>(`/sales-orders/${id}/delivery`, data),
+};
+
+export const ExpensesApi = {
+  list: (params?: { from?: string; to?: string; category?: string }) => api.get<Expense[]>('/expenses', { params }),
+  create: (data: { category: string; description?: string; amount: number; expenseDate?: string }) =>
+    api.post<Expense>('/expenses', data),
+  remove: (id: string) => api.delete(`/expenses/${id}`),
 };
 
 export const UsersApi = {

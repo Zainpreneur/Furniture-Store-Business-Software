@@ -11,6 +11,7 @@ import suppliersRoutes from './modules/suppliers/suppliers.routes';
 import purchaseOrdersRoutes from './modules/purchaseOrders/purchaseOrders.routes';
 import salesOrdersRoutes from './modules/salesOrders/salesOrders.routes';
 import dashboardRoutes from './modules/dashboard/dashboard.routes';
+import expensesRoutes from './modules/expenses/expenses.routes';
 
 import { notFoundHandler, errorHandler } from './middleware/errorHandler';
 
@@ -34,6 +35,7 @@ export function createApp() {
   app.use('/api/purchase-orders', purchaseOrdersRoutes);
   app.use('/api/sales-orders', salesOrdersRoutes);
   app.use('/api/dashboard', dashboardRoutes);
+  app.use('/api/expenses', expensesRoutes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

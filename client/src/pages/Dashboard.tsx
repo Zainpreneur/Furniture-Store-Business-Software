@@ -23,13 +23,20 @@ export default function Dashboard() {
     <div>
       <PageHeader title="Dashboard" subtitle="Overview of your furniture store's performance" />
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <StatCard label="Revenue today" value={currency(data.revenue.today)} tone="green" />
         <StatCard label="Revenue this month" value={currency(data.revenue.month)} tone="green" />
+        <StatCard
+          label="Net profit (month)"
+          value={currency(data.profit.netMonth)}
+          sub={`Gross ${currency(data.profit.grossMonth)} − expenses ${currency(data.profit.expensesMonth)}`}
+          tone={data.profit.netMonth >= 0 ? 'green' : 'red'}
+        />
         <StatCard label="Products" value={String(data.counts.productCount)} />
         <StatCard label="Customers" value={String(data.counts.customerCount)} />
         <StatCard label="Open purchase orders" value={String(data.counts.pendingPurchaseOrders)} />
         <StatCard label="Low stock items" value={String(data.counts.lowStockCount)} tone={data.counts.lowStockCount > 0 ? 'red' : 'stone'} />
+        <StatCard label="Upcoming deliveries" value={String(data.upcomingDeliveries.length)} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
@@ -70,7 +77,7 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="p-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-stone-800">Low stock alerts</h2>
@@ -118,6 +125,32 @@ export default function Dashboard() {
                     <span className="text-stone-700 font-medium">{currency(o.total)}</span>
                     <Badge tone={statusTone(o.status)}>{o.status}</Badge>
                   </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card className="p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-stone-800">Upcoming deliveries</h2>
+            <Link to="/deliveries" className="text-xs text-brand-600 hover:underline">
+              View all
+            </Link>
+          </div>
+          {data.upcomingDeliveries.length === 0 ? (
+            <EmptyState message="No deliveries scheduled." />
+          ) : (
+            <ul className="divide-y divide-stone-100">
+              {data.upcomingDeliveries.map((o) => (
+                <li key={o.id} className="py-2 flex items-center justify-between text-sm">
+                  <div>
+                    <div className="font-medium text-stone-800">{o.orderNumber}</div>
+                    <div className="text-xs text-stone-400">
+                      {o.customer?.name ?? 'Walk-in'} · {o.scheduledDate ? format(parseISO(o.scheduledDate), 'MMM d') : 'unscheduled'}
+                    </div>
+                  </div>
+                  <Badge tone={statusTone(o.deliveryStatus)}>{o.deliveryStatus.replace(/_/g, ' ')}</Badge>
                 </li>
               ))}
             </ul>

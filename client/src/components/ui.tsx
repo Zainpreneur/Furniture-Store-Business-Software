@@ -126,13 +126,18 @@ export function statusTone(status: string): 'stone' | 'green' | 'yellow' | 'red'
     case 'COMPLETED':
     case 'RECEIVED':
     case 'PAID':
+    case 'DELIVERED':
       return 'green';
     case 'PENDING':
+    case 'PARTIALLY_PAID':
+    case 'NOT_SCHEDULED':
       return 'yellow';
     case 'CANCELLED':
       return 'red';
     case 'SHIPPED':
     case 'ORDERED':
+    case 'SCHEDULED':
+    case 'OUT_FOR_DELIVERY':
       return 'blue';
     default:
       return 'stone';

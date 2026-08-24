@@ -25,6 +25,8 @@ model User {
 
   salesOrders   SalesOrder[]
   inventoryLogs InventoryLog[]
+  payments      Payment[]
+  expenses      Expense[]
 }
 
 model Category {
@@ -123,18 +125,27 @@ model SalesOrder {
   customer      Customer? @relation(fields: [customerId], references: [id])
   userId        String?
   user          User?     @relation(fields: [userId], references: [id])
-  status        String    @default("PENDING") // PENDING | PAID | SHIPPED | COMPLETED | CANCELLED
+  status        String    @default("PENDING") // PENDING | PAID | PARTIALLY_PAID | SHIPPED | COMPLETED | CANCELLED
   paymentMethod String    @default("CASH") // CASH | CARD | BANK_TRANSFER | FINANCING | OTHER
   orderDate     DateTime  @default(now())
   subtotal      Float
+  discount      Float     @default(0)
   taxRate       Float     @default(0)
   tax           Float     @default(0)
   total         Float
   notes         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
 
-  items SalesOrderItem[]
+  // Delivery / fulfillment
+  fulfillmentMethod String    @default("PICKUP") // PICKUP | DELIVERY
+  deliveryAddress   String?
+  scheduledDate     DateTime?
+  deliveryStatus    String    @default("NOT_SCHEDULED") // NOT_SCHEDULED | SCHEDULED | OUT_FOR_DELIVERY | DELIVERED
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items    SalesOrderItem[]
+  payments Payment[]
 
   @@index([customerId])
   @@index([userId])
@@ -167,4 +178,35 @@ model InventoryLog {
   createdAt   DateTime @default(now())
 
   @@index([productId])
+}
+
+// A payment applied toward a sales order. Multiple payments per order support
+// deposits / layaway plans common in furniture retail (deposit now, balance on delivery).
+model Payment {
+  id           String     @id @default(cuid())
+  salesOrderId String
+  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  amount       Float
+  method       String // CASH | CARD | BANK_TRANSFER | FINANCING | OTHER
+  note         String?
+  userId       String?
+  user         User?      @relation(fields: [userId], references: [id])
+  createdAt    DateTime   @default(now())
+
+  @@index([salesOrderId])
+}
+
+// Operating expenses (rent, utilities, wages, marketing, ...) used to compute
+// net profit alongside sales revenue and cost of goods sold.
+model Expense {
+  id          String   @id @default(cuid())
+  category    String // RENT | UTILITIES | WAGES | MARKETING | SUPPLIES | SHIPPING | OTHER
+  description String?
+  amount      Float
+  expenseDate DateTime @default(now())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([expenseDate])
 }
