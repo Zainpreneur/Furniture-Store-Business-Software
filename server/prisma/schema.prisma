@@ -1,0 +1,212 @@
+// Furniture Store Business Software — data model
+// Default datasource is SQLite for zero-setup local dev.
+// For production, switch provider to "postgresql" and set DATABASE_URL accordingly
+// (SQLite has no native enum support, which is why "enum-like" fields below are
+// plain Strings validated at the API layer with Zod — see server/src/modules/*).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         String   @default("STAFF") // ADMIN | MANAGER | STAFF
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  salesOrders   SalesOrder[]
+  inventoryLogs InventoryLog[]
+  payments      Payment[]
+  expenses      Expense[]
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?
+  createdAt   DateTime  @default(now())
+  products    Product[]
+}
+
+model Product {
+  id            String   @id @default(cuid())
+  sku           String   @unique
+  name          String
+  description   String?
+  material      String?
+  dimensions    String? // e.g. "72in x 36in x 30in"
+  color         String?
+  costPrice     Float
+  sellingPrice  Float
+  stockQuantity Int      @default(0)
+  reorderLevel  Int      @default(5)
+  imageUrl      String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id])
+
+  salesOrderItems    SalesOrderItem[]
+  purchaseOrderItems PurchaseOrderItem[]
+  inventoryLogs      InventoryLog[]
+
+  @@index([categoryId])
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?
+  phone     String?
+  address   String?
+  notes     String?
+  createdAt DateTime @default(now())
+
+  salesOrders SalesOrder[]
+}
+
+model Supplier {
+  id          String   @id @default(cuid())
+  name        String
+  contactName String?
+  email       String?
+  phone       String?
+  address     String?
+  createdAt   DateTime @default(now())
+
+  purchaseOrders PurchaseOrder[]
+}
+
+model PurchaseOrder {
+  id           String    @id @default(cuid())
+  orderNumber  String    @unique
+  supplierId   String
+  supplier     Supplier  @relation(fields: [supplierId], references: [id])
+  status       String    @default("PENDING") // PENDING | ORDERED | RECEIVED | CANCELLED
+  orderDate    DateTime  @default(now())
+  expectedDate DateTime?
+  receivedDate DateTime?
+  notes        String?
+  createdAt    DateTime  @default(now())
+
+  items PurchaseOrderItem[]
+
+  @@index([supplierId])
+}
+
+model PurchaseOrderItem {
+  id              String        @id @default(cuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  productId       String
+  product         Product       @relation(fields: [productId], references: [id])
+  quantity        Int
+  unitCost        Float
+
+  @@index([purchaseOrderId])
+  @@index([productId])
+}
+
+model SalesOrder {
+  id            String    @id @default(cuid())
+  orderNumber   String    @unique
+  customerId    String?
+  customer      Customer? @relation(fields: [customerId], references: [id])
+  userId        String?
+  user          User?     @relation(fields: [userId], references: [id])
+  status        String    @default("PENDING") // PENDING | PAID | PARTIALLY_PAID | SHIPPED | COMPLETED | CANCELLED
+  paymentMethod String    @default("CASH") // CASH | CARD | BANK_TRANSFER | FINANCING | OTHER
+  orderDate     DateTime  @default(now())
+  subtotal      Float
+  discount      Float     @default(0)
+  taxRate       Float     @default(0)
+  tax           Float     @default(0)
+  total         Float
+  notes         String?
+
+  // Delivery / fulfillment
+  fulfillmentMethod String    @default("PICKUP") // PICKUP | DELIVERY
+  deliveryAddress   String?
+  scheduledDate     DateTime?
+  deliveryStatus    String    @default("NOT_SCHEDULED") // NOT_SCHEDULED | SCHEDULED | OUT_FOR_DELIVERY | DELIVERED
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items    SalesOrderItem[]
+  payments Payment[]
+
+  @@index([customerId])
+  @@index([userId])
+}
+
+model SalesOrderItem {
+  id           String     @id @default(cuid())
+  salesOrderId String
+  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product    @relation(fields: [productId], references: [id])
+  quantity     Int
+  unitPrice    Float
+  lineTotal    Float
+
+  @@index([salesOrderId])
+  @@index([productId])
+}
+
+model InventoryLog {
+  id          String   @id @default(cuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+  changeQty   Int // positive = stock in, negative = stock out
+  reason      String // SALE | PURCHASE_RECEIVED | ADJUSTMENT | RETURN | INITIAL_STOCK
+  referenceId String?
+  note        String?
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([productId])
+}
+
+// A payment applied toward a sales order. Multiple payments per order support
+// deposits / layaway plans common in furniture retail (deposit now, balance on delivery).
+model Payment {
+  id           String     @id @default(cuid())
+  salesOrderId String
+  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  amount       Float
+  method       String // CASH | CARD | BANK_TRANSFER | FINANCING | OTHER
+  note         String?
+  userId       String?
+  user         User?      @relation(fields: [userId], references: [id])
+  createdAt    DateTime   @default(now())
+
+  @@index([salesOrderId])
+}
+
+// Operating expenses (rent, utilities, wages, marketing, ...) used to compute
+// net profit alongside sales revenue and cost of goods sold.
+model Expense {
+  id          String   @id @default(cuid())
+  category    String // RENT | UTILITIES | WAGES | MARKETING | SUPPLIES | SHIPPING | OTHER
+  description String?
+  amount      Float
+  expenseDate DateTime @default(now())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([expenseDate])
+}
